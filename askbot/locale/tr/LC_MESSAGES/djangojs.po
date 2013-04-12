@@ -321,7 +321,7 @@ msgstr "Yüklenecek dosyayı seçin"
 #~ msgid "cancel"
 #~ msgstr "iptal"
 
-#~ msgid "Are you sure you don't want to post this comment?"
+#~ msgid "confirm abandon comment"
 #~ msgstr "Yorum yazmak istemediğinize emin misiniz?"
 
 #~ msgid "confirm delete comment"

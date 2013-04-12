@@ -1,13 +1,12 @@
-import datetime
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils.translation import ugettext as _
-from django.utils.html import escape
+import datetime
 from askbot import const
 from django.core.urlresolvers import reverse
-
+from apps.org.models import Org
 class VoteManager(models.Manager):
     def get_up_vote_count_from_user(self, user):
         if user is not None:
@@ -41,11 +40,11 @@ class Vote(models.Model):
 
     vote           = models.SmallIntegerField(choices=VOTE_CHOICES)
     voted_at       = models.DateTimeField(default=datetime.datetime.now)
-
+    org = models.ForeignKey(Org, verbose_name=_('org'), null=True, blank=True)
     objects = VoteManager()
 
     class Meta:
-        unique_together = ('user', 'voted_post')
+#        unique_together = ('user', 'voted_post')
         app_label = 'askbot'
         db_table = u'vote'
 
@@ -75,14 +74,14 @@ class Vote(models.Model):
         """
         #importing locally because of circular dependency
         from askbot import auth
-        score_before = self.voted_post.points
+        score_before = self.voted_post.score
         if self.vote > 0:
             # cancel upvote
             auth.onUpVotedCanceled(self, self.voted_post, self.user)
         else:
             # cancel downvote
             auth.onDownVotedCanceled(self, self.voted_post, self.user)
-        score_after = self.voted_post.points
+        score_after = self.voted_post.score
 
         return score_after - score_before
 
@@ -91,23 +90,24 @@ class BadgeData(models.Model):
     """Awarded for notable actions performed on the site by Users."""
     slug = models.SlugField(max_length=50, unique=True)
     awarded_count = models.PositiveIntegerField(default=0)
-    awarded_to = models.ManyToManyField(
-                    User, through='Award', related_name='badges'
-                )
+    awarded_to    = models.ManyToManyField(User, through='Award', related_name='badges')
 
     def _get_meta_data(self):
-        """retrieves badge metadata stored
+        """retrieves badge metadata stored 
         in a file"""
         from askbot.models import badges
         return badges.get_badge(self.slug)
 
-    def get_name(self):
+    @property
+    def name(self):
         return self._get_meta_data().name
 
-    def get_description(self):
+    @property
+    def description(self):
         return self._get_meta_data().description
 
-    def get_css_class(self):
+    @property
+    def css_class(self):
         return self._get_meta_data().css_class
 
     def get_type_display(self):
@@ -124,6 +124,19 @@ class BadgeData(models.Model):
     def get_absolute_url(self):
         return '%s%s/' % (reverse('badge', args=[self.id]), self.slug)
 
+class AwardManager(models.Manager):
+    def get_recent_awards(self):
+        awards = super(AwardManager, self).extra(
+            select={'badge_id': 'badge.id', 'badge_name':'badge.name',
+                          'badge_description': 'badge.description', 'badge_type': 'badge.type',
+                          'user_id': 'auth_user.id', 'user_name': 'auth_user.username'
+                          },
+            tables=['award', 'badge', 'auth_user'],
+            order_by=['-awarded_at'],
+            where=['auth_user.id=award.user_id AND badge_id=badge.id'],
+        ).values('badge_id', 'badge_name', 'badge_description', 'badge_type', 'user_id', 'user_name')
+        return awards
+
 class Award(models.Model):
     """The awarding of a Badge to a User."""
     user       = models.ForeignKey(User, related_name='award_user')
@@ -134,8 +147,10 @@ class Award(models.Model):
     awarded_at = models.DateTimeField(default=datetime.datetime.now)
     notified   = models.BooleanField(default=False)
 
+    objects = AwardManager()
+
     def __unicode__(self):
-        return u'[%s] is awarded a badge [%s] at %s' % (self.user.username, self.badge.get_name(), self.awarded_at)
+        return u'[%s] is awarded a badge [%s] at %s' % (self.user.username, self.badge.name, self.awarded_at)
 
     class Meta:
         app_label = 'askbot'
@@ -155,9 +170,9 @@ class ReputeManager(models.Manager):
             tomorrow = today + datetime.timedelta(1)
             rep_types = (1,-8)
             sums = self.filter(models.Q(reputation_type__in=rep_types),
-                                user=user,
+                                user=user, 
                                 reputed_at__range=(today, tomorrow),
-                      ).aggregate(models.Sum('positive'), models.Sum('negative'))
+                      ).aggregate(models.Sum('positive'), models.Sum('negative'))            
             if sums:
                 pos = sums['positive__sum']
                 neg = sums['negative__sum']
@@ -184,7 +199,7 @@ class Repute(models.Model):
     #assigned_by_moderator - so that reason can be displayed
     #in that case Question field will be blank
     comment = models.CharField(max_length=128, null=True)
-
+    
     objects = ReputeManager()
 
     def __unicode__(self):
@@ -198,7 +213,7 @@ class Repute(models.Model):
         """returns HTML snippet with a link to related question
         or a text description for a the reason of the reputation change
 
-        in the implementation description is returned only
+        in the implementation description is returned only 
         for Repute.reputation_type == 10 - "assigned by the moderator"
 
         part of the purpose of this method is to hide this idiosyncracy
@@ -207,7 +222,7 @@ class Repute(models.Model):
             return  _('<em>Changed by moderator. Reason:</em> %(reason)s') \
                                                     % {'reason':self.comment}
         else:
-            delta = self.positive + self.negative#.negative is < 0 so we add!
+            delta = self.positive - self.negative
             link_title_data = {
                                 'points': abs(delta),
                                 'username': self.user.username,
@@ -226,8 +241,8 @@ class Repute(models.Model):
 
             return '<a href="%(url)s" title="%(link_title)s">%(question_title)s</a>' \
                             % {
-                               'url': self.question.get_absolute_url(),
-                               'question_title': escape(self.question.thread.title),
-                               'link_title': escape(link_title)
+                               'url': self.question.get_absolute_url(), 
+                               'question_title': self.question.thread.title,
+                               'link_title': link_title
                             }
 

@@ -6,23 +6,14 @@ from django.db.backends.dummy.base import IntegrityError
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
 from django.contrib.auth.models import User
-from django.contrib.auth.models import Group as AuthGroup
 from django.core import exceptions
 from django.forms import EmailField, URLField
 from django.utils.translation import ugettext as _
-from django.utils.translation import ugettext_lazy
 from django.utils.html import strip_tags
 from askbot import const
-from askbot.conf import settings as askbot_settings
 from askbot.utils import functions
-from askbot.models.base import BaseQuerySetManager
 from askbot.models.tag import Tag
-from askbot.models.tag import clean_group_name#todo - delete this
-from askbot.models.tag import get_tags_by_names
 from askbot.forms import DomainNameField
-from askbot.utils.forms import email_is_allowed
-
-PERSONAL_GROUP_NAME_PREFIX = '_personal_'
 
 class ResponseAndMentionActivityManager(models.Manager):
     def get_query_set(self):
@@ -57,7 +48,7 @@ class ActivityManager(models.Manager):
                 mentioned_at = None,
                 mentioned_in = None,
                 reported = None
-            ):
+            ): 
 
         #todo: automate this using python inspect module
         kwargs = dict()
@@ -96,7 +87,7 @@ class ActivityManager(models.Manager):
         return mention_activity
 
     def get_mentions(
-                self,
+                self, 
                 mentioned_by = None,
                 mentioned_whom = None,
                 mentioned_at = None,
@@ -214,7 +205,10 @@ class Activity(models.Model):
         return user_qs[0]
 
     def get_snippet(self, max_length = 120):
-        return self.content_object.get_snippet(max_length)
+        if self.summary == '':
+            return self.content_object.get_snippet(max_length)
+        else:
+            return self.summary
 
     def get_absolute_url(self):
         return self.content_object.get_absolute_url()
@@ -273,25 +267,18 @@ class EmailFeedSetting(models.Model):
         'q_sel': 'n',
         'm_and_c': 'n'
     }
-    MAX_EMAIL_SCHEDULE = {
-        'q_ask': 'i',
-        'q_ans': 'i',
-        'q_all': 'i',
-        'q_sel': 'i',
-        'm_and_c': 'i'
-    }
     FEED_TYPE_CHOICES = (
-                    ('q_all', ugettext_lazy('Entire forum')),
-                    ('q_ask', ugettext_lazy('Questions that I asked')),
-                    ('q_ans', ugettext_lazy('Questions that I answered')),
-                    ('q_sel', ugettext_lazy('Individually selected questions')),
-                    ('m_and_c', ugettext_lazy('Mentions and comment responses')),
+                    ('q_all',_('Entire forum')),
+                    ('q_ask',_('Questions that I asked')),
+                    ('q_ans',_('Questions that I answered')),
+                    ('q_sel',_('Individually selected questions')),
+                    ('m_and_c',_('Mentions and comment responses')),
                     )
     UPDATE_FREQUENCY = (
-                    ('i', ugettext_lazy('Instantly')),
-                    ('d', ugettext_lazy('Daily')),
-                    ('w', ugettext_lazy('Weekly')),
-                    ('n', ugettext_lazy('No email')),
+                    ('i',_('Instantly')),
+                    ('d',_('Daily')),
+                    ('w',_('Weekly')),
+                    ('n',_('No email')),
                    )
 
 
@@ -318,8 +305,8 @@ class EmailFeedSetting(models.Model):
         else:
             reported_at = '%s' % self.reported_at.strftime('%d/%m/%y %H:%M')
         return 'Email feed for %s type=%s, frequency=%s, reported_at=%s' % (
-                                                     self.subscriber,
-                                                     self.feed_type,
+                                                     self.subscriber, 
+                                                     self.feed_type, 
                                                      self.frequency,
                                                      reported_at
                                                  )
@@ -352,145 +339,28 @@ class EmailFeedSetting(models.Model):
         self.save()
 
 
-class AuthUserGroups(models.Model):
-    """explicit model for the auth_user_groups bridge table.
+class GroupMembership(models.Model):
+    """an explicit model to link users and the tags
+    that by being recorded with this relation automatically
+    become group tags
     """
-    group = models.ForeignKey(AuthGroup)
-    user = models.ForeignKey(User)
-
-    class Meta:
-        app_label = 'auth'
-        unique_together = ('group', 'user')
-        db_table = 'auth_user_groups'
-        managed = False
-
-
-class GroupMembership(AuthUserGroups):
-    """contains one-to-one relation to ``auth_user_group``
-    and extra membership profile fields"""
-    #note: this may hold info on when user joined, etc
-    NONE = -1#not part of the choices as for this records should be just missing
-    PENDING = 0
-    FULL = 1
-    LEVEL_CHOICES = (#'none' is by absence of membership
-        (PENDING, 'pending'),
-        (FULL, 'full')
-    )
-    ALL_LEVEL_CHOICES = LEVEL_CHOICES + ((NONE, 'none'),)
-
-    level = models.SmallIntegerField(
-                        default=FULL,
-                        choices=LEVEL_CHOICES,
-                    )
-
+    group = models.ForeignKey(Tag, related_name = 'user_memberships')
+    user = models.ForeignKey(User, related_name = 'group_memberships')
 
     class Meta:
         app_label = 'askbot'
+        unique_together = ('group', 'user')
 
-    @classmethod
-    def get_level_value_display(cls, level):
-        """returns verbose value given a numerical value
-        includes the "fanthom" NONE
-        """
-        values_dict = dict(cls.ALL_LEVEL_CHOICES)
-        return values_dict[level]
-
-
-class GroupQuerySet(models.query.QuerySet):
-    """Custom query set for the group"""
-
-    def exclude_personal(self):
-        """excludes the personal groups"""
-        return self.exclude(
-            name__startswith=PERSONAL_GROUP_NAME_PREFIX
-        )
-
-    def get_personal(self):
-        """filters for the personal groups"""
-        return self.filter(
-            name__startswith=PERSONAL_GROUP_NAME_PREFIX
-        )
-
-    def get_for_user(self, user=None, private=False):
-        if private:
-            global_group = Group.objects.get_global_group()
-            return self.filter(
-                        user=user
-                    ).exclude(id=global_group.id)
-        else:
-            return self.filter(user = user)
-
-    def get_by_name(self, group_name = None):
-        return self.get(name = clean_group_name(group_name))
-
-
-class GroupManager(BaseQuerySetManager):
-    """model manager for askbot groups"""
-
-    def get_query_set(self):
-        return GroupQuerySet(self.model)
-
-    def get_global_group(self):
-        """Returns the global group,
-        if necessary, creates one
-        """
-        #todo: when groups are disconnected from tags,
-        #find comment as shown below in the test cases and
-        #revert the values
-        #todo: change groups to django groups
-        group_name = askbot_settings.GLOBAL_GROUP_NAME
-        try:
-            return self.get_query_set().get(name=group_name)
-        except Group.DoesNotExist:
-            return self.get_query_set().create(name=group_name)
-
-    def create(self, **kwargs):
-        name = kwargs['name']
-        try:
-            group_ptr = AuthGroup.objects.get(name=name)
-            kwargs['group_ptr'] = group_ptr
-        except AuthGroup.DoesNotExist:
-            pass
-        return super(GroupManager, self).create(**kwargs)
-
-    def get_or_create(self, name = None, user = None, openness=None):
-        """creates a group tag or finds one, if exists"""
-        #todo: here we might fill out the group profile
-        try:
-            #iexact is important!!! b/c we don't want case variants
-            #of tags
-            group = self.get(name__iexact = name)
-        except self.model.DoesNotExist:
-            if openness is None:
-                group = self.create(name=name)
-            else:
-                group = self.create(name=name, openness=openness)
-        return group
-
-
-class Group(AuthGroup):
-    """group profile for askbot"""
-    OPEN = 0
-    MODERATED = 1
-    CLOSED = 2
-    OPENNESS_CHOICES = (
-        (OPEN, 'open'),
-        (MODERATED, 'moderated'),
-        (CLOSED, 'closed'),
-    )
-    logo_url = models.URLField(null=True)
-    description = models.OneToOneField(
-                    'Post', related_name='described_group',
-                    null=True, blank=True
-                )
-    moderate_email = models.BooleanField(default=True)
-    moderate_answers_to_enquirers = models.BooleanField(
-                        default=False,
-                        help_text='If true, answers to outsiders questions '
-                                'will be shown to the enquirers only when '
-                                'selected by the group moderators.'
-                    )
-    openness = models.SmallIntegerField(default=CLOSED, choices=OPENNESS_CHOICES)
+class GroupProfile(models.Model):
+    """stores group profile data"""
+    group_tag = models.OneToOneField(
+                            Tag,
+                            unique = True,
+                            related_name = 'group_profile'
+                        )
+    logo_url = models.URLField(null = True)
+    moderate_email = models.BooleanField(default = True)
+    is_open = models.BooleanField(default = False)
     #preapproved email addresses and domain names to auto-join groups
     #trick - the field is padded with space and all tokens are space separated
     preapproved_emails = models.TextField(
@@ -501,71 +371,32 @@ class Group(AuthGroup):
                             null = True, blank = True, default = ''
                         )
 
-    is_vip = models.BooleanField(default=False)
-
-    objects = GroupManager()
-
     class Meta:
         app_label = 'askbot'
-        db_table = 'askbot_group'
 
-    def get_moderators(self):
-        """returns group moderators"""
-        user_filter = models.Q(is_superuser=True) | models.Q(status='m')
-        user_filter = user_filter & models.Q(groups__in=[self])
-        return User.objects.filter(user_filter)
-
-    def has_moderator(self, user):
-        """true, if user is a group moderator"""
-        mod_ids = self.get_moderators().values_list('id', flat=True)
-        return user.id in mod_ids
-
-    def get_openness_choices(self):
-        """gives answers to question
-        "How can users join this group?"
-        """
-        return (
-            (Group.OPEN, _('Can join when they want')),
-            (Group.MODERATED, _('Users ask permission')),
-            (Group.CLOSED, _('Moderator adds users'))
-        )
-
-    def get_openness_level_for_user(self, user):
-        """returns descriptive value, because it is to be used in the
-        templates. The value must match the verbose versions of the
-        openness choices!!!
-        """
+    def can_accept_user(self, user):
+        """True if user is preapproved to join the group"""
         if user.is_anonymous():
-            return 'closed'
+            return False
 
-        #a special case - automatic global group cannot be joined or left
-        if self.name == askbot_settings.GLOBAL_GROUP_NAME:
-            return 'closed'
-
-        #todo - return 'closed' for internal per user groups too
-
-        if self.openness == Group.OPEN:
-            return 'open'
+        if self.is_open:
+            return True
 
         if user.is_administrator_or_moderator():
-            return 'open'
+            return True
 
         #relying on a specific method of storage
-        if email_is_allowed(
-            user.email,
-            allowed_emails=self.preapproved_emails,
-            allowed_email_domains=self.preapproved_email_domains
-        ):
-            return 'open'
+        if self.preapproved_emails:
+            email_match_re = re.compile(r'\s%s\s' % user.email)
+            if email_match_re.search(self.preapproved_emails):
+                return True
 
-        if self.openness == Group.MODERATED:
-            return 'moderated'
+        if self.preapproved_email_domains:
+            email_domain = user.email.split('@')[1]
+            domain_match_re = re.compile(r'\s%s\s' % email_domain)
+            return domain_match_re.search(self.preapproved_email_domains)
 
-        return 'closed'
-
-    def is_personal(self):
-        """``True`` if the group is personal"""
-        return self.name.startswith(PERSONAL_GROUP_NAME_PREFIX)
+        return False
 
     def clean(self):
         """called in `save()`
@@ -592,72 +423,4 @@ class Group(AuthGroup):
 
     def save(self, *args, **kwargs):
         self.clean()
-        super(Group, self).save(*args, **kwargs)
-
-class BulkTagSubscriptionManager(BaseQuerySetManager):
-
-    def create(
-                self, tag_names=None,
-                user_list=None, group_list=None,
-                tag_author=None,  **kwargs
-            ):
-
-        tag_names = tag_names or []
-        user_list = user_list or []
-        group_list = group_list or []
-
-        new_object = super(BulkTagSubscriptionManager, self).create(**kwargs)
-        tag_name_list = []
-
-        if tag_names:
-            tags, new_tag_names = get_tags_by_names(tag_names)
-            if new_tag_names:
-                assert(tag_author)
-
-            tags_id_list= [tag.id for tag in tags]
-            tag_name_list = [tag.name for tag in tags]
-
-            new_tags = Tag.objects.create_in_bulk(
-                                        tag_names=new_tag_names,
-                                        user=tag_author
-                                    )
-
-            tags_id_list.extend([tag.id for tag in new_tags])
-            tag_name_list.extend([tag.name for tag in new_tags])
-
-            new_object.tags.add(*tags_id_list)
-
-        if user_list:
-            user_ids = []
-            for user in user_list:
-                user_ids.append(user.id)
-                user.mark_tags(tagnames=tag_name_list,
-                               reason='subscribed',
-                               action='add')
-
-            new_object.users.add(*user_ids)
-
-        if group_list:
-            group_ids = []
-            for group in group_list:
-                #TODO: do the group marked tag thing here
-                group_ids.append(group.id)
-            new_object.groups.add(*group_ids)
-
-        return new_object
-
-
-class BulkTagSubscription(models.Model):
-    date_added = models.DateField(auto_now_add=True)
-    tags = models.ManyToManyField(Tag)
-    users = models.ManyToManyField(User)
-    groups = models.ManyToManyField(Group)
-
-    objects = BulkTagSubscriptionManager()
-
-    def tag_list(self):
-        return [tag.name for tag in self.tags.all()]
-
-    class Meta:
-        app_label = 'askbot'
-        ordering = ['-date_added']
+        super(GroupProfile, self).save(*args, **kwargs)

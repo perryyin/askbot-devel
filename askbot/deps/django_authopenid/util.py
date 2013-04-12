@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
 import cgi
 import urllib
-import urlparse
 import functools
 import re
-import random
 from openid.store.interface import OpenIDStore
 from openid.association import Association as OIDAssociation
 from openid.extensions import sreg
 from openid import store as openid_store
-import oauth2 as oauth # OAuth1 protocol
+import oauth2 as oauth
 
 from django.db.models.query import Q
 from django.conf import settings
-from django.core.urlresolvers import reverse
 from django.utils import simplejson
 from django.utils.datastructures import SortedDict
 from django.utils.translation import ugettext as _
@@ -128,6 +125,9 @@ class DjangoOpenIDStore(OpenIDStore):
 
         return False
    
+    def cleanupNonce(self):
+        Nonce.objects.filter(timestamp<int(time.time()) - nonce.SKEW).delete()
+
     def cleanupAssociations(self):
         Association.objects.extra(where=['issued + lifetimeint<(%s)' % time.time()]).delete()
 
@@ -387,23 +387,12 @@ def get_enabled_major_login_providers():
             'password_changeable': True
         }
 
-    def get_facebook_user_id(client):
-        """returns facebook user id given the access token"""
-        profile = client.request('me')
-        return profile['id']
-
     if askbot_settings.FACEBOOK_KEY and askbot_settings.FACEBOOK_SECRET:
         data['facebook'] = {
             'name': 'facebook',
             'display_name': 'Facebook',
-            'type': 'oauth2',
-            'auth_endpoint': 'https://www.facebook.com/dialog/oauth/',
-            'token_endpoint': 'https://graph.facebook.com/oauth/access_token',
-            'resource_endpoint': 'https://graph.facebook.com/',
+            'type': 'facebook',
             'icon_media_path': '/jquery-openid/images/facebook.gif',
-            'get_user_id_function': get_facebook_user_id,
-            'response_parser': lambda data: dict(urlparse.parse_qsl(data))
-
         }
     if askbot_settings.TWITTER_KEY and askbot_settings.TWITTER_SECRET:
         data['twitter'] = {
@@ -423,7 +412,6 @@ def get_enabled_major_login_providers():
         token = oauth.Token(data['oauth_token'], data['oauth_token_secret'])
         client = oauth.Client(consumer, token=token)
         url = 'https://identi.ca/api/account/verify_credentials.json'
-        response, content = client.request(url, 'GET')
         json = simplejson.loads(content)
         return json['id']
     if askbot_settings.IDENTICA_KEY and askbot_settings.IDENTICA_SECRET:
@@ -492,14 +480,6 @@ def get_enabled_major_login_providers():
         'extra_token_name': _('AOL screen name'),
         'icon_media_path': '/jquery-openid/images/aol.gif',
         'openid_endpoint': 'http://openid.aol.com/%(username)s'
-    }
-    data['launchpad'] = {
-        'name': 'launchpad',
-        'display_name': 'LaunchPad',
-        'type': 'openid-direct',
-        'icon_media_path': '/jquery-openid/images/launchpad.gif',
-        'tooltip_text': _('Sign in with LaunchPad'),
-        'openid_endpoint': 'https://login.launchpad.net/'
     }
     data['openid'] = {
         'name': 'openid',
@@ -686,11 +666,8 @@ def get_oauth_parameters(provider_name):
     elif provider_name == 'identi.ca':
         consumer_key = askbot_settings.IDENTICA_KEY
         consumer_secret = askbot_settings.IDENTICA_SECRET
-    elif provider_name == 'facebook':
-        consumer_key = askbot_settings.FACEBOOK_KEY
-        consumer_secret = askbot_settings.FACEBOOK_SECRET
     else:
-        raise ValueError('unexpected oauth provider %s' % provider_name)
+        raise ValueError('sorry, only linkedin and twitter oauth for now')
 
     data['consumer_key'] = consumer_key
     data['consumer_secret'] = consumer_secret
@@ -804,21 +781,62 @@ class OAuthConnection(object):
 
         return auth_url
 
-def get_oauth2_starter_url(provider_name, csrf_token):
-    """returns redirect url for the oauth2 protocol for a given provider"""
-    from sanction.client import Client
+class FacebookError(Exception):
+    """Raised when there's something not right 
+    with FacebookConnect
+    """
+    pass
 
-    providers = get_enabled_login_providers()
-    params = providers[provider_name]
-    client_id = getattr(askbot_settings, provider_name.upper() + '_KEY')
-    redirect_uri = askbot_settings.APP_URL + reverse('user_complete_oauth2_signin')
-    client = Client(
-        auth_endpoint=params['auth_endpoint'],
-        client_id=client_id,
-        redirect_uri=redirect_uri
+def urlsafe_b64decode(input):
+    length = len(input)
+    return base64.urlsafe_b64decode(
+        input.ljust(length + length % 4, '=')
     )
-    return client.auth_uri(state=csrf_token)
 
+def parse_signed_facebook_request(signed_request, secret):
+    """
+    Parse signed_request given by Facebook (usually via POST),
+    decrypt with app secret.
+
+    Arguments:
+    signed_request -- Facebook's signed request given through POST
+    secret -- Application's app_secret required to decrpyt signed_request
+
+    slightly edited copy from https://gist.github.com/1190267
+    """
+
+    if "." in signed_request:
+        esig, payload = signed_request.split(".")
+    else:
+        return {}
+
+    sig = urlsafe_b64decode(str(esig))
+    data = simplejson.loads(urlsafe_b64decode(str(payload)))
+
+    if not isinstance(data, dict):
+        raise ValueError("Pyload is not a json string!")
+        return {}
+
+    if data["algorithm"].upper() == "HMAC-SHA256":
+        if hmac.new(str(secret), str(payload), hashlib.sha256).digest() == sig:
+            return data
+    else:
+        raise ValueError("Not HMAC-SHA256 encrypted!")
+
+    return {}
+
+def get_facebook_user_id(request):
+    try:
+        key = askbot_settings.FACEBOOK_KEY
+        fb_cookie = request.COOKIES['fbsr_%s' % key]
+        if not fb_cookie:
+            raise ValueError('cannot access facebook cookie')
+
+        secret = askbot_settings.FACEBOOK_SECRET
+        response = parse_signed_facebook_request(fb_cookie, secret)
+        return response['user_id']
+    except Exception, e:
+        raise FacebookError(e)
 
 def ldap_check_password(username, password):
     import ldap

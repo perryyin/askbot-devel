@@ -319,7 +319,7 @@ msgstr "Valitse ja lataa tiedosto:"
 #~ msgid "cancel"
 #~ msgstr "peruuta"
 
-#~ msgid "Are you sure you don't want to post this comment?"
+#~ msgid "confirm abandon comment"
 #~ msgstr "Oletko varma, ettet halua julkaista tätä kommenttia?"
 
 #~ msgid "confirm delete comment"

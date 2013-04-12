@@ -5,7 +5,7 @@ users or others
 """
 from askbot.conf.settings_wrapper import settings
 from askbot.deps.livesettings import ConfigurationGroup, IntegerValue
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext as _
 from askbot.conf.super_groups import REP_AND_BADGES
 
 REP_CHANGES = ConfigurationGroup(
@@ -114,7 +114,7 @@ settings.register(
     IntegerValue(
         REP_CHANGES,
         'REP_LOSS_FOR_RECEIVING_DOWNVOTE',
-        default=-10,
+        default=-1,
         description=_('Loss for owner of post that was downvoted')
     )
 )

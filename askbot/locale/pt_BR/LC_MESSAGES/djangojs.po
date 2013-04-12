@@ -377,7 +377,7 @@ msgstr "gravar arquivo anexo"
 #~ msgstr "cancelar"
 
 # 100%
-#~ msgid "Are you sure you don't want to post this comment?"
+#~ msgid "confirm abandon comment"
 #~ msgstr "confirme abandonar comentário"
 
 # 100%

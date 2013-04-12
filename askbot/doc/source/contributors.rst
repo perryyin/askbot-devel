@@ -6,8 +6,8 @@ This is the list of contributors to the code of Askbot project.
 The list is probably incomplete, apologies for any omissions.
 Thanks for all your help
 
-Programming, bug fixes and documentation
-----------------------------------------
+Programming and documentation
+-----------------------------
 * Mike Chen & Sailing Cai - original authors of CNPROG forum
 * Evgeny Fadeev - founder of askbot
 * `Adolfo Fitoria <http://fitoria.net>`_
@@ -39,12 +39,6 @@ Programming, bug fixes and documentation
 * `monkut <https://github.com/monkut>`_
 * `Jim Tittsler <http://wikieducator.org/User:JimTittsler>`_
 * Silvio Heuberger
-* `Alexandros <https://github.com/alexandros-z>`_
-* `Paul Backhouse <https://github.com/powlo>`_
-* `jtrain <https://github.com/jtrain>`_
-* Niki Rocco
-* `Tyler Mandry <https://github.com/tmandry>`_
-* `Jorge López Pérez <https://github.com/adobo>`_
 
 Translations
 ------------
@@ -54,9 +48,9 @@ Translations
 * Evgeny Fadeev - English
 * Oktay Yildiz, Onur Mat, Cemre - Turkish
 * Jérôme Blondon (bearstech) - French
-* Pekka Gaiser, Edur - German
+* Pekka Gaiser - German
 * Pekka Järvinen - Finnish
 * Adi Robian - Romanian
-* `Stefano Mancini <https://github.com/xponrails>`_, Dario Ghilardi, Federico Poloni, `Luca Ferroni <http://www.linkedin.com/in/lucaferroni>`_ - Italian
+* Dario Ghilardi, Federico Poloni, `Luca Ferroni <http://www.linkedin.com/in/lucaferroni>`_ - Italian
 * `Jordi Bofill <https://github.com/jbofill>`_ - Catalan
 

@@ -6,7 +6,7 @@ users or others
 from askbot.conf.settings_wrapper import settings
 from askbot.conf.super_groups import REP_AND_BADGES
 from askbot.deps.livesettings import ConfigurationGroup, IntegerValue
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext as _
 
 BADGES = ConfigurationGroup(
                     'BADGES',
@@ -100,7 +100,7 @@ settings.register(
     IntegerValue(
         BADGES,
         'POPULAR_QUESTION_BADGE_MIN_VIEWS',
-        default=15,
+        default=150,
         description=_('Popular Question: minimum views')
     )
 )
@@ -109,7 +109,7 @@ settings.register(
     IntegerValue(
         BADGES,
         'NOTABLE_QUESTION_BADGE_MIN_VIEWS',
-        default=25,
+        default=250,
         description=_('Notable Question: minimum views')
     )
 )
@@ -118,7 +118,7 @@ settings.register(
     IntegerValue(
         BADGES,
         'FAMOUS_QUESTION_BADGE_MIN_VIEWS',
-        default=50,
+        default=500,
         description=_('Famous Question: minimum views')
     )
 )
@@ -217,7 +217,7 @@ settings.register(
     IntegerValue(
         BADGES,
         'TAXONOMIST_BADGE_MIN_USE_COUNT',
-        default = 5,
+        default = 10,
         description = _('Taxonomist: minimum tag use count')
     )
 )
@@ -226,7 +226,7 @@ settings.register(
     IntegerValue(
         BADGES,
         'ENTHUSIAST_BADGE_MIN_DAYS',
-        default = 5,
+        default = 30,
         description = _('Enthusiast: minimum days')
     )
 )

@@ -12,14 +12,12 @@
 """
 #!/usr/bin/env python
 #encoding:utf-8
-from django.contrib.syndication.views import Feed
-
 import itertools
 
+from django.contrib.syndication.feeds import Feed
 from django.contrib.contenttypes.models import ContentType
 from django.utils.translation import ugettext as _
 from django.core.exceptions import ObjectDoesNotExist
-from django.http import Http404
 
 from askbot.models import Post
 from askbot.conf import settings as askbot_settings
@@ -38,12 +36,10 @@ class RssIndividualQuestionFeed(Feed):
     def description(self):
         return askbot_settings.APP_DESCRIPTION
 
-    def get_object(self, request, pk):
-        if askbot_settings.RSS_ENABLED is False:
-            raise Http404
-        #hack to get the request object into the Feed class
-        self.request = request
-        return Post.objects.get_questions().get(id__exact = pk)
+    def get_object(self, bits):
+        if len(bits) != 1:
+            raise ObjectDoesNotExist
+        return Post.objects.get_questions().get(id__exact = bits[0])
 
     def item_link(self, item):
         """get full url to the item
@@ -71,7 +67,6 @@ class RssIndividualQuestionFeed(Feed):
         )
 
         answers = Post.objects.get_answers().filter(thread = item.thread)
-
         for answer in answers:
             chain_elements.append([answer,])
             chain_elements.append(
@@ -128,7 +123,7 @@ class RssLastestQuestionsFeed(Feed):
     def item_author_link(self, item):
         """get url of the author's profile
         """
-        return askbot_settings.APP_URL + item.author.get_profile_url()
+        return item.author.get_profile_url()
 
     def item_pubdate(self, item):
         """get date of creation for the item
@@ -139,7 +134,7 @@ class RssLastestQuestionsFeed(Feed):
         """returns url without the slug
         because the slug can change
         """
-        return self.link() + item.get_absolute_url(no_slug = True)
+        return askbot_settings.APP_URL + item.get_absolute_url(no_slug = True)
 
     def item_description(self, item):
         """returns the description for the item
@@ -149,8 +144,6 @@ class RssLastestQuestionsFeed(Feed):
     def items(self, item):
         """get questions for the feed
         """
-        if askbot_settings.RSS_ENABLED is False:
-            raise Http404
         #initial filtering
         qs = Post.objects.get_questions().filter(deleted=False)
 
@@ -171,10 +164,7 @@ class RssLastestQuestionsFeed(Feed):
 
         return qs.order_by('-thread__last_activity_at')[:30]
 
-    #hack to get the request object into the Feed class
-    def get_feed(self, obj, request):
-        self.request = request
-        return super(RssLastestQuestionsFeed, self).get_feed(obj, request)
+
 
 def main():
     """main function for use as a script

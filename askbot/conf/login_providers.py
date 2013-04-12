@@ -4,7 +4,7 @@ External service key settings
 from askbot.conf.settings_wrapper import settings
 from askbot.conf.super_groups import LOGIN_USERS_COMMUNICATION
 from askbot.deps import livesettings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext as _
 from django.conf import settings as django_settings
 from askbot.skins import utils as skin_utils
 
@@ -81,11 +81,6 @@ providers = (
     'Verisign',
     'Yahoo',
     'identi.ca',
-    'LaunchPad'
-)
-
-DISABLED_BY_DEFAULT = (
-    'LaunchPad'
 )
 
 need_extra_setup = ('Twitter', 'Facebook', 'LinkedIn', 'identi.ca',)
@@ -93,7 +88,7 @@ need_extra_setup = ('Twitter', 'Facebook', 'LinkedIn', 'identi.ca',)
 for provider in providers:
     kwargs = {
         'description': _('Activate %(provider)s login') % {'provider': provider},
-        'default': not (provider in DISABLED_BY_DEFAULT)
+        'default': True,
     }
     if provider in need_extra_setup:
         kwargs['help_text'] = _(

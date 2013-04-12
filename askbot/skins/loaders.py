@@ -1,21 +1,19 @@
 import os.path
-from django.template.loader import BaseLoader
+from django.template.loaders import filesystem
 from django.template import RequestContext
-from django.template import TemplateDoesNotExist
 from django.http import HttpResponse
 from django.utils import translation
 from django.conf import settings as django_settings
-from django.core.exceptions import ImproperlyConfigured
 from coffin.common import CoffinEnvironment
 from jinja2 import loaders as jinja_loaders
 from jinja2.exceptions import TemplateNotFound
 from jinja2.utils import open_if_exists
 from askbot.conf import settings as askbot_settings
 from askbot.skins import utils
-
 from coffin import template
 template.add_to_builtins('askbot.templatetags.extra_filters_jinja')
-
+  
+# Uncomment the next line to enable the jinja_tag as if defaulttags     
 #module for skinning askbot
 #via ASKBOT_DEFAULT_SKIN configureation variable (not django setting)
 
@@ -23,6 +21,27 @@ template.add_to_builtins('askbot.templatetags.extra_filters_jinja')
 #to work on unicode file paths
 #here it is ignored because it is assumed that we won't use unicode paths
 ASKBOT_SKIN_COLLECTION_DIR = os.path.dirname(__file__)
+
+#changed the name from load_template_source
+def filesystem_load_template_source(name, dirs=None):
+    """Django template loader
+    """
+
+    if dirs is None:
+        dirs = (ASKBOT_SKIN_COLLECTION_DIR, )
+    else:
+        dirs += (ASKBOT_SKIN_COLLECTION_DIR, )
+
+    try:
+        #todo: move this to top after splitting out get_skin_dirs()
+        tname = os.path.join(askbot_settings.ASKBOT_DEFAULT_SKIN,'templates',name)
+        return filesystem.load_template_source(tname,dirs)
+    except:
+        tname = os.path.join('default','templates',name)
+        return filesystem.load_template_source(tname,dirs)
+filesystem_load_template_source.is_usable = True
+#added this for backward compatbility
+load_template_source = filesystem_load_template_source
 
 class SkinEnvironment(CoffinEnvironment):
     """Jinja template environment
@@ -60,20 +79,9 @@ class SkinEnvironment(CoffinEnvironment):
         or empty string - depending on the existence of file
         SKIN_PATH/media/style/extra.css
         """
-        url = None
-
-        if django_settings.ASKBOT_CSS_DEVEL is True:
-            url = utils.get_media_url('style/extra.less', ignore_missing=True)
-            rel = "stylesheet/less"
-
-        #second try - if there is no extra.less in devel mode - try css
-        if url is None:
-            url = utils.get_media_url('style/extra.css', ignore_missing=True)
-            rel = "stylesheet"
-
+        url = utils.get_media_url('style/extra.css', ignore_missing = True)
         if url is not None:
-            return '<link href="%s" rel="%s" type="text/less" />' % (url, rel)
-
+            return '<link href="%s" rel="stylesheet" type="text/css" />' % url
         return ''
 
 def load_skins():
@@ -93,16 +101,10 @@ SKINS = load_skins()
 def get_skin(request = None):
     """retreives the skin environment
     for a given request (request var is not used at this time)"""
-    skin_name = askbot_settings.ASKBOT_DEFAULT_SKIN
-    try:
-        return SKINS[skin_name]
-    except KeyError:
-        msg_fmt = 'skin "%s" not found, check value of "ASKBOT_EXTRA_SKINS_DIR"'
-        raise ImproperlyConfigured(msg_fmt % skin_name)
+    return SKINS[askbot_settings.ASKBOT_DEFAULT_SKIN]
 
-def get_askbot_template(template, request = None):
-    """
-    retreives template for the skin
+def get_template(template, request = None):
+    """retreives template for the skin
     request variable will be used in the future to set
     template according to the user preference or admins preference
 
@@ -113,10 +115,14 @@ def get_askbot_template(template, request = None):
         skin.set_language(request.LANGUAGE_CODE)
     return skin.get_template(template)
 
-def render_into_skin_as_string(template, data, request):
+def render_into_skin(template, data, request, mimetype = 'text/html'):
+    """in the future this function will be able to
+    switch skin depending on the site administrator/user selection
+    right now only admins can switch
+    """
     context = RequestContext(request, data)
-    template = get_askbot_template(template, request)
-    return template.render(context)
+    template = get_template(template, request)
+    return HttpResponse(template.render(context), mimetype = mimetype)
 
 def render_text_into_skin(text, data, request):
     context = RequestContext(request, data)
@@ -124,13 +130,3 @@ def render_text_into_skin(text, data, request):
     template = skin.from_string(text)
     return template.render(context)
 
-class Loader(BaseLoader):
-    """skins template loader for Django > 1.2
-    todo: verify that this actually follows django's convention correctly
-    """
-    is_usable = True
-    def load_template(self, template_name, template_dirs = None):
-        try:
-            return get_askbot_template(template_name), template_name
-        except TemplateNotFound:
-            raise TemplateDoesNotExist

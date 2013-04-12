@@ -9,7 +9,6 @@ from django.utils.encoding import smart_str
 
 import askbot
 import askbot.conf
-from askbot.conf import settings as askbot_settings
 from askbot import const
 from askbot.utils.functions import strip_plus
 
@@ -91,11 +90,8 @@ class SearchState(object):
     def __init__(self, scope, sort, query, tags, author, page, user_logged_in):
         # INFO: zip(*[('a', 1), ('b', 2)])[0] == ('a', 'b')
 
-        if (scope not in zip(*const.POST_SCOPE_LIST)[0]) or (scope == 'followed' and not user_logged_in):
-            if user_logged_in:
-                self.scope = askbot_settings.DEFAULT_SCOPE_AUTHENTICATED
-            else:
-                self.scope = askbot_settings.DEFAULT_SCOPE_ANONYMOUS
+        if (scope not in zip(*const.POST_SCOPE_LIST)[0]) or (scope == 'favorite' and not user_logged_in):
+            self.scope = const.DEFAULT_POST_SCOPE
         else:
             self.scope = scope
 
@@ -120,10 +116,6 @@ class SearchState(object):
             self.sort = const.DEFAULT_POST_SORT_METHOD
         else:
             self.sort = sort
-
-        #patch for empty stripped query, relevance sorting is useless then
-        if self.stripped_query in (None, '') and sort == 'relevance-desc':
-            self.sort = const.DEFAULT_POST_SORT_METHOD
 
         self.tags = []
         if tags:
@@ -174,16 +166,10 @@ class SearchState(object):
     SAFE_CHARS = const.TAG_SEP + '_+.-'
 
     def query_string(self):
-        """returns part of the url to the main page,
-        responsible to display the full text search results,
-        taking into account sort method, selected scope
-        and search tags"""
-
         lst = [
             'scope:' + self.scope,
             'sort:' + self.sort
         ]
-
         if self.query:
             lst.append('query:' + urllib.quote(smart_str(self.query), safe=self.SAFE_CHARS))
         if self.tags:

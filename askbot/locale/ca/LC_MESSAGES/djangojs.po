@@ -308,7 +308,7 @@ msgstr "pujar arxiu adjunt"
 #~ msgid "cancel"
 #~ msgstr "anul·lar"
 
-#~ msgid "Are you sure you don't want to post this comment?"
+#~ msgid "confirm abandon comment"
 #~ msgstr "confirmar abandó del commenari"
 
 #~ msgid "confirm delete comment"

@@ -5,58 +5,13 @@ from askbot.conf.settings_wrapper import settings
 from askbot.deps import livesettings
 from askbot import const
 from askbot.conf.super_groups import DATA_AND_FORMATTING
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext as _
 
 FORUM_DATA_RULES = livesettings.ConfigurationGroup(
                         'FORUM_DATA_RULES',
                         _('Data entry and display rules'),
                         super_group = DATA_AND_FORMATTING
                     )
-
-EDITOR_CHOICES = (
-    ('markdown', 'markdown'),
-    ('tinymce', 'WYSIWYG (tinymce)')
-)
-
-settings.register(
-    livesettings.StringValue(
-        FORUM_DATA_RULES,
-        'EDITOR_TYPE',
-        default = 'markdown',
-        choices = EDITOR_CHOICES,
-        description = _('Editor for the posts')
-    )
-)
-
-COMMENTS_EDITOR_CHOICES = (
-    ('plain-text', 'Plain text editor'),
-    ('rich-text', 'Same editor as for questions and answers')
-)
-
-settings.register(
-    livesettings.StringValue(
-        FORUM_DATA_RULES,
-        'COMMENTS_EDITOR_TYPE',
-        default='plain-text',
-        choices=COMMENTS_EDITOR_CHOICES,
-        description=_('Editor for the comments')
-    )
-)
-
-settings.register(
-    livesettings.BooleanValue(
-        FORUM_DATA_RULES,
-        'ASK_BUTTON_ENABLED',
-        default=True,
-        description=_('Enable big Ask button'),
-        help_text=_(
-            'Disabling this button will reduce number of new questions. '
-            'If this button is disabled, the ask button in the search menu '
-            'will still be available.'
-        )
-    )
-)
-
 
 settings.register(
     livesettings.BooleanValue(
@@ -167,45 +122,9 @@ settings.register(
 settings.register(
     livesettings.BooleanValue(
         FORUM_DATA_RULES,
-        'LIMIT_ONE_ANSWER_PER_USER',
-        default = True,
-        description = _(
-            'Limit one answer per question per user'
-        )
-    )
-)
-
-settings.register(
-    livesettings.BooleanValue(
-        FORUM_DATA_RULES,
-        'ACCEPTING_ANSWERS_ENABLED',
-        default=True,
-        description = _('Enable accepting best answer')
-    )
-)
-
-settings.register(
-    livesettings.BooleanValue(
-        FORUM_DATA_RULES,
         'TAGS_ARE_REQUIRED',
         description = _('Are tags required?'),
         default = False,
-    )
-)
-
-TAG_SOURCE_CHOICES = (
-    ('category-tree', _('category tree')),
-    ('user-input', _('user input')),
-)
-
-settings.register(
-    livesettings.StringValue(
-        FORUM_DATA_RULES,
-        'TAG_SOURCE',
-        description = _('Source of tags'),
-        #hidden = True,
-        choices = TAG_SOURCE_CHOICES,
-        default = 'user-input'
     )
 )
 
@@ -281,21 +200,6 @@ settings.register(
     )
 )
 
-MARKED_TAG_DISPLAY_CHOICES = (
-    ('always', _('Always, for all users')),
-    ('never', _('Never, for all users')),
-    ('when-user-wants', _('Let users decide'))
-)
-settings.register(
-    livesettings.StringValue(
-        FORUM_DATA_RULES,
-        'MARKED_TAGS_ARE_PUBLIC_WHEN',
-        default = 'always',
-        choices = MARKED_TAG_DISPLAY_CHOICES,
-        description = _('Publicly show user tag selections')
-    )
-)
-
 settings.register(
     livesettings.BooleanValue(
         FORUM_DATA_RULES,
@@ -354,12 +258,8 @@ settings.register(
     livesettings.BooleanValue(
         FORUM_DATA_RULES,
         'SAVE_COMMENT_ON_ENTER',
-        default=False,
-        description=_('Save comment by pressing <Enter> key'),
-        help_text=_(
-            'This may be useful when only one-line comments '
-            'are desired. Will not work with TinyMCE editor.'
-        )
+        default = True,
+        description = _('Save comment by pressing <Enter> key')
     )
 )
 
@@ -397,7 +297,7 @@ settings.register(
     )
 )
 
-#todo: looks like there is a bug in askbot.deps.livesettings
+#todo: looks like there is a bug in askbot.deps.livesettings 
 #that does not allow Integer values with defaults and choices
 settings.register(
     livesettings.StringValue(

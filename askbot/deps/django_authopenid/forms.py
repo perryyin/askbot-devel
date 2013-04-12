@@ -33,14 +33,12 @@ import logging
 from django import forms
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext as _
-from django.utils.translation import ugettext_lazy
-from django.conf import settings as django_settings
+from django.conf import settings
 from askbot.conf import settings as askbot_settings
 from askbot import const as askbot_const
 from django.utils.safestring import mark_safe
 from recaptcha_works.fields import RecaptchaField
 from askbot.utils.forms import NextUrlField, UserNameField, UserEmailField, SetPasswordForm
-from askbot.utils.loading import load_module
 
 # needed for some linux distributions like debian
 try:
@@ -107,7 +105,7 @@ class OpenidSigninForm(forms.Form):
         if 'openid_url' in self.cleaned_data:
             openid_url = self.cleaned_data['openid_url']
             if xri.identifierScheme(openid_url) == 'XRI' and getattr(
-                    django_settings, 'OPENID_DISALLOW_INAMES', False
+                settings, 'OPENID_DISALLOW_INAMES', False
                 ):
                 raise forms.ValidationError(_('i-names are not supported'))
             return self.cleaned_data['openid_url']
@@ -213,8 +211,7 @@ class LoginForm(forms.Form):
             self.cleaned_data['login_type'] = 'openid'
         elif provider_type == 'oauth':
             self.cleaned_data['login_type'] = 'oauth'
-        elif provider_type == 'oauth2':
-            self.cleaned_data['login_type'] = 'oauth2'
+            pass
         elif provider_type == 'facebook':
             self.cleaned_data['login_type'] = 'facebook'
             #self.do_clean_oauth_fields()
@@ -311,14 +308,14 @@ class LoginForm(forms.Form):
 class OpenidRegisterForm(forms.Form):
     """ openid signin form """
     next = NextUrlField()
-    username = UserNameField(widget_attrs={'tabindex': 0})
+    username = UserNameField()
     email = UserEmailField()
 
 class ClassicRegisterForm(SetPasswordForm):
     """ legacy registration form """
 
     next = NextUrlField()
-    username = UserNameField(widget_attrs={'tabindex': 0})
+    username = UserNameField()
     email = UserEmailField()
     login_provider = PasswordLoginProviderField()
     #fields password1 and password2 are inherited
@@ -335,7 +332,7 @@ class SafeClassicRegisterForm(ClassicRegisterForm):
 class ChangePasswordForm(SetPasswordForm):
     """ change password form """
     oldpw = forms.CharField(widget=forms.PasswordInput(attrs={'class':'required'}),
-                label=mark_safe(ugettext_lazy('Current password')))
+                label=mark_safe(_('Current password')))
 
     def __init__(self, data=None, user=None, *args, **kwargs):
         if user is None:
@@ -435,12 +432,7 @@ class DeleteForm(forms.Form):
 
 class EmailPasswordForm(forms.Form):
     """ send new password form """
-    username = UserNameField(
-                    skip_clean=True,
-                    label=mark_safe(
-                            ugettext_lazy('Your user name (<i>required</i>)')
-                        )
-                )
+    username = UserNameField(skip_clean=True,label=mark_safe(_('Your user name (<i>required</i>)')))
 
     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None, 
             initial=None):
@@ -457,13 +449,3 @@ class EmailPasswordForm(forms.Form):
             except:
                 raise forms.ValidationError(_("sorry, there is no such user name"))
         return self.cleaned_data['username']
-
-def get_registration_form_class():
-    """returns class for the user registration form
-    user has a chance to specify the form via setting `REGISTRATION_FORM`
-    """
-    custom_class = getattr(django_settings, 'REGISTRATION_FORM', None)
-    if custom_class:
-        return load_module(custom_class)
-    else:
-        return OpenidRegisterForm

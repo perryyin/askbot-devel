@@ -6,17 +6,14 @@ import urllib
 from coffin import template as coffin_template
 from django.core import exceptions as django_exceptions
 from django.utils.translation import ugettext as _
-from django.utils.translation import get_language as django_get_language
 from django.contrib.humanize.templatetags import humanize
 from django.template import defaultfilters
 from django.core.urlresolvers import reverse, resolve
 from django.http import Http404
-from django.utils import simplejson
 from askbot import exceptions as askbot_exceptions
 from askbot.conf import settings as askbot_settings
 from django.conf import settings as django_settings
 from askbot.skins import utils as skin_utils
-from askbot.utils.html import absolutize_urls
 from askbot.utils import functions
 from askbot.utils import url_utils
 from askbot.utils.slug import slugify
@@ -27,7 +24,17 @@ from django_countries import settings as countries_settings
 
 register = coffin_template.Library()
 
-absolutize_urls = register.filter(absolutize_urls)
+def absolutize_urls_func(text):
+    url_re1 = re.compile(r'(?P<prefix><img[^<]+src=)"(?P<url>/[^"]+)"', re.I)
+    url_re2 = re.compile(r"(?P<prefix><img[^<]+src=)'(?P<url>/[^']+)'", re.I)
+    url_re3 = re.compile(r'(?P<prefix><a[^<]+href=)"(?P<url>/[^"]+)"', re.I)
+    url_re4 = re.compile(r"(?P<prefix><a[^<]+href=)'(?P<url>/[^']+)'", re.I)
+    replacement = '\g<prefix>"%s\g<url>"' % askbot_settings.APP_URL
+    text = url_re1.sub(replacement, text)
+    text = url_re2.sub(replacement, text)
+    text = url_re3.sub(replacement, text)
+    return url_re4.sub(replacement, text)
+absolutize_urls = register.filter(absolutize_urls_func)
 
 TIMEZONE_STR = pytz.timezone(
                     django_settings.TIME_ZONE
@@ -38,31 +45,6 @@ TIMEZONE_STR = pytz.timezone(
 @register.filter
 def add_tz_offset(datetime_object):
     return str(datetime_object) + ' ' + TIMEZONE_STR
-
-@register.filter
-def as_js_bool(some_object):
-    if bool(some_object):
-        return 'true'
-    return 'false'
-
-@register.filter
-def as_json(data):
-    return simplejson.dumps(data)
-
-@register.filter
-def is_current_language(lang):
-    return lang == django_get_language()
-
-@register.filter
-def to_int(value):
-    return int(value)
-
-@register.filter
-def safe_urlquote(text, quote_plus = False):
-    if quote_plus:
-        return urllib.quote_plus(text.encode('utf8'))
-    else:
-        return urllib.quote(text.encode('utf8'))
 
 @register.filter
 def strip_path(url):

@@ -64,7 +64,7 @@ class SearchStateTests(AskbotTestCase):
 
     def test_edge_cases_1(self):
         ss = SearchState(
-            scope='followed', # this is not a valid choice for non-logger users
+            scope='favorite', # this is not a valid choice for non-logger users
             sort='age-desc',
             query=' alfa',
             tags='miki, mini',
@@ -83,7 +83,7 @@ class SearchStateTests(AskbotTestCase):
         )
 
         ss = SearchState(
-            scope='followed',
+            scope='favorite',
             sort='age-desc',
             query=' alfa',
             tags='miki, mini',
@@ -93,11 +93,11 @@ class SearchStateTests(AskbotTestCase):
             user_logged_in=True
         )
         self.assertEqual(
-            'scope:followed/sort:age-desc/query:alfa/tags:miki,mini/author:12/page:2/',
+            'scope:favorite/sort:age-desc/query:alfa/tags:miki,mini/author:12/page:2/',
             ss.query_string()
         )
         self.assertEqual(
-            'scope:followed/sort:age-desc/query:alfa/tags:miki,mini/author:12/page:2/',
+            'scope:favorite/sort:age-desc/query:alfa/tags:miki,mini/author:12/page:2/',
             ss.deepcopy().query_string()
         )
 

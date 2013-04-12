@@ -315,7 +315,7 @@ msgstr "ファイルを選択してアップロードしてください:"
 #~ msgid "cancel"
 #~ msgstr "キャンセル"
 
-#~ msgid "Are you sure you don't want to post this comment?"
+#~ msgid "confirm abandon comment"
 #~ msgstr "本当にこのコメントを投稿したいですか？"
 
 #~ msgid "confirm delete comment"

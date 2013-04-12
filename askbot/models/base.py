@@ -41,7 +41,7 @@ class BaseQuerySetManager(models.Manager):
             return getattr(self.get_query_set(), attr, *args)
 
 
-class DraftContent(models.Model):
+class AnonymousContent(models.Model):
     """Base class for AnonymousQuestion and AnonymousAnswer"""
     session_key = models.CharField(max_length=40)  #session id for anonymous questions
     wiki = models.BooleanField(default=False)
@@ -49,6 +49,7 @@ class DraftContent(models.Model):
     ip_addr = models.IPAddressField(max_length=21) #allow high port numbers
     author = models.ForeignKey(User,null=True)
     text = models.TextField()
+    summary = models.CharField(max_length=180)
 
     class Meta:
         abstract = True

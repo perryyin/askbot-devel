@@ -33,13 +33,6 @@ _('click to see the most answered questions')
 _('click to see least voted questions')
 _('by votes')
 _('click to see most voted questions')
-_('interesting')
-_('ignored')
-_('subscribed')
-TAGS_ARE_REQUIRED_MESSAGE = _('tags are required')
-TAG_WRONG_CHARS_MESSAGE = _(
-    'please use letters, numbers and characters "-+.#"'
-)
 
 def get_i18n_message(key):
     messages = {
@@ -54,4 +47,7 @@ def get_i18n_message(key):
             'Please contact the forum administrator to reach a resolution.'
         )
     }
-    return messages[key]
+    if key in messages:
+        return messages.get(key)
+    else:
+        raise KeyError(key)

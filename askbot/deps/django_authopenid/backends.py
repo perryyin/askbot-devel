@@ -6,16 +6,87 @@ import datetime
 import logging
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
-from django.conf import settings as django_settings
 from django.utils.translation import ugettext as _
 from askbot.deps.django_authopenid.models import UserAssociation
 from askbot.deps.django_authopenid import util
-from askbot.deps.django_authopenid.ldap_auth import ldap_authenticate
-from askbot.deps.django_authopenid.ldap_auth import ldap_create_user
 from askbot.conf import settings as askbot_settings
-from askbot.models.signals import user_registered
 
-LOG = logging.getLogger(__name__)
+log = logging.getLogger('configuration')
+
+
+def ldap_authenticate(username, password):
+    """
+    Authenticate using ldap
+    
+    python-ldap must be installed
+    http://pypi.python.org/pypi/python-ldap/2.4.6
+    """
+    import ldap
+    user_information = None
+    try:
+        ldap_session = ldap.initialize(askbot_settings.LDAP_URL)
+        ldap_session.protocol_version = ldap.VERSION3
+        user_filter = "({0}={1})".format(askbot_settings.LDAP_USERID_FIELD, 
+                                         username)
+        # search ldap directory for user
+        res = ldap_session.search_s(askbot_settings.LDAP_BASEDN, ldap.SCOPE_SUBTREE, user_filter, None)
+        if res: # User found in LDAP Directory
+            user_dn = res[0][0]
+            user_information = res[0][1]
+            ldap_session.simple_bind_s(user_dn, password) # <-- will throw  ldap.INVALID_CREDENTIALS if fails
+            ldap_session.unbind_s()
+            
+            exact_username = user_information[askbot_settings.LDAP_USERID_FIELD][0]
+            
+            # Assuming last, first order
+            # --> may be different
+            last_name, first_name = user_information[askbot_settings.LDAP_COMMONNAME_FIELD][0].rsplit(" ", 1)
+            email = user_information[askbot_settings.LDAP_EMAIL_FIELD][0]
+            try:
+                user = User.objects.get(username__exact=exact_username)
+                # always update user profile to synchronize with ldap server
+                user.set_password(password)
+                user.first_name = first_name
+                user.last_name = last_name
+                user.email = email
+                user.save()
+            except User.DoesNotExist:
+                # create new user in local db
+                user = User()
+                user.username = exact_username
+                user.set_password(password)
+                user.first_name = first_name
+                user.last_name = last_name
+                user.email = email
+                user.is_staff = False
+                user.is_superuser = False
+                user.is_active = True
+                user.save()
+
+                log.info('Created New User : [{0}]'.format(exact_username))
+            return user
+        else:
+            # Maybe a user created internally (django admin user)
+            try:
+                user = User.objects.get(username__exact=username)
+                if user.check_password(password):
+                    return user
+                else:
+                    return None
+            except User.DoesNotExist:
+                return None 
+
+    except ldap.INVALID_CREDENTIALS, e:
+        return None # Will fail login on return of None
+    except ldap.LDAPError, e:
+        log.error("LDAPError Exception")
+        log.exception(e)
+        return None
+    except Exception, e:
+        log.error("Unexpected Exception Occurred")
+        log.exception(e)
+        return None
+
 
 class AuthBackend(object):
     """Authenticator's authentication backend class
@@ -25,8 +96,6 @@ class AuthBackend(object):
     the reason there is only one class - for simplicity of
     adding this application to a django project - users only need
     to extend the AUTHENTICATION_BACKENDS with a single line
-
-    todo: it is not good to have one giant do all 'authenticate' function
     """
 
     def authenticate(
@@ -66,7 +135,7 @@ class AuthBackend(object):
                     except User.DoesNotExist:
                         return None
                     except User.MultipleObjectsReturned:
-                        LOG.critical(
+                        logging.critical(
                             ('have more than one user with email %s ' +
                             'he/she will not be able to authenticate with ' +
                             'the email address in the place of user name') % email_address
@@ -88,13 +157,11 @@ class AuthBackend(object):
                         if created:
                             user.set_password(password)
                             user.save()
-                            user_registered.send(None, user = user)
                         else:
                             #have username collision - so make up a more unique user name
                             #bug: - if user already exists with the new username - we are in trouble
                             new_username = '%s@%s' % (username, provider_name)
                             user = User.objects.create_user(new_username, '', password)
-                            user_registered.send(None, user = user)
                             message = _(
                                 'Welcome! Please set email address (important!) in your '
                                 'profile and adjust screen name, if necessary.'
@@ -119,17 +186,15 @@ class AuthBackend(object):
             assoc.openid_url = username + '@' + provider_name#has to be this way for external pw logins
 
         elif method == 'openid':
+            provider_name = util.get_provider_name(openid_url)
             try:
-                assoc = UserAssociation.objects.get(openid_url=openid_url)
+                assoc = UserAssociation.objects.get(
+                                            openid_url = openid_url,
+                                            provider_name = provider_name
+                                        )
                 user = assoc.user
             except UserAssociation.DoesNotExist:
                 return None
-            except UserAssociation.MultipleObjectsReturned:
-                logging.critical(
-                    'duplicate openid url in the database!!! %s' % openid_url
-                )
-                return None
-                
 
         elif method == 'email':
             #with this method we do no use user association
@@ -145,7 +210,7 @@ class AuthBackend(object):
                 return None
 
         elif method == 'oauth':
-            if login_providers[provider_name]['type'] in ('oauth', 'oauth2'):
+            if login_providers[provider_name]['type'] == 'oauth':
                 try:
                     assoc = UserAssociation.objects.get(
                                                 openid_url = oauth_user_id,
@@ -169,34 +234,7 @@ class AuthBackend(object):
                 return None
 
         elif method == 'ldap':
-            user_info = ldap_authenticate(username, password)
-            if user_info['success'] == False:
-                # Maybe a user created internally (django admin user)
-                try:
-                    user = User.objects.get(username__exact=username)
-                    if user.check_password(password):
-                        return user
-                    else:
-                        return None
-                except User.DoesNotExist:
-                    return None 
-            else:
-                #load user by association or maybe auto-create one
-                ldap_username = user_info['ldap_username']
-                try:
-                    #todo: provider_name is hardcoded - possible conflict
-                    assoc = UserAssociation.objects.get(
-                                            openid_url = ldap_username + '@ldap',
-                                            provider_name = 'ldap'
-                                        )
-                    user = assoc.user
-                except UserAssociation.DoesNotExist:
-                    #email address is required
-                    if 'email' in user_info and askbot_settings.LDAP_AUTOCREATE_USERS:
-                        assoc = ldap_create_user(user_info)
-                        user = assoc.user
-                    else:
-                        return None
+            user = ldap_authenticate(username, password)
 
         elif method == 'wordpress_site':
             try:

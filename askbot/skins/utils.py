@@ -8,10 +8,9 @@ the lookup resolution process for templates and media works as follows:
 import os
 import logging
 import urllib
-import askbot
-from askbot.utils import hasher
 from django.conf import settings as django_settings
 from django.utils.datastructures import SortedDict
+from askbot.utils import hasher
 
 class MediaNotFound(Exception):
     """raised when media file is not found"""
@@ -29,10 +28,7 @@ def get_skins_from_dir(directory):
     return skins
 
 def get_available_skins(selected=None):
-    """Returns a dictionary of skin name --> directory where
-    "templates" and "media" subdirectories can be found.
-
-    selected is a name of preferred skin
+    """selected is a name of preferred skin
     if it's None, then information about all skins will be returned
     otherwise, only data about selected and default skins
     will be returned
@@ -43,24 +39,24 @@ def get_available_skins(selected=None):
     if hasattr(django_settings, 'ASKBOT_EXTRA_SKINS_DIR'):
         skins.update(get_skins_from_dir(django_settings.ASKBOT_EXTRA_SKINS_DIR))
 
-    if 'default' in skins:
-        raise ValueError('"default" is not an acceptable name for a custom skin')
+    stock_dir = os.path.normpath(os.path.dirname(__file__))
+    stock_skins = get_skins_from_dir(stock_dir)
+    default_dir = stock_skins.pop('default')
+    common_dir = stock_skins.pop('common')
 
-    if selected in skins:
-        selected_dir = skins[selected]
-        skins.clear()
-        skins[selected] = selected_dir
-    elif selected == 'default':
-        skins = SortedDict()
-    elif selected:
-        raise ValueError(
-            'skin ' + str(selected) + \
-            ' not found, please check ASKBOT_EXTRA_SKINS_DIR setting ' + \
-            'or in the corresponding directory'
-        )
+    skins.update(stock_skins)
+    if selected:
+        if selected in skins:
+            selected_dir = skins[selected]
+            skins.clear()
+            skins[selected] = selected_dir
+        else:
+            assert(selected == 'default' or selected == 'common')
+            skins = SortedDict()
 
-    #insert default as a last item
-    skins['default'] = askbot.get_install_directory()
+    #re-insert default as a last item
+    skins['default'] = default_dir
+    skins['common'] = common_dir
     return skins
 
 
@@ -78,12 +74,13 @@ def get_skin_choices():
     """returns a tuple for use as a set of
     choices in the form"""
     available_skins = get_available_skins().keys()
+    available_skins.remove('common')
     skin_names = list(reversed(available_skins))
     return zip(skin_names, skin_names)
 
 def resolve_skin_for_media(media=None, preferred_skin = None):
     #see if file exists, if not, try skin 'default'
-    available_skins = get_available_skins(selected=preferred_skin).items()
+    available_skins = get_available_skins(selected = preferred_skin).items()
     for skin_name, skin_dir in available_skins:
         if os.path.isfile(os.path.join(skin_dir, 'media', media)):
             return skin_name
@@ -169,23 +166,24 @@ def get_media_url(url, ignore_missing = False):
     #print after - before
     return url
 
-def update_media_revision(skin=None):
+def update_media_revision(skin = None):
     """update skin media revision number based on the contents
     of the skin media directory"""
     from askbot.conf import settings as askbot_settings
     resource_revision = askbot_settings.MEDIA_RESOURCE_REVISION
 
-    skin = skin or askbot_settings.ASKBOT_DEFAULT_SKIN
-
-    if skin in get_available_skins().keys():
-        skin_path = get_path_to_skin(skin)
+    if skin:
+        if skin in get_skin_choices():
+            skin_path = get_path_to_skin(skin)
+        else:
+            raise MediaNotFound('Skin %s not found' % skin)
     else:
-        assert(skin != 'default')
-        msg = 'Skin "%s" not found. Please check ASKBOT_EXTRA_SKINS_DIR setting'
-        raise MediaNotFound(msg % skin)
+        skin = 'default'
+        skin_path = get_path_to_skin(askbot_settings.ASKBOT_DEFAULT_SKIN)
 
     media_dirs = [
         os.path.join(skin_path, 'media'),
+        os.path.join(get_path_to_skin('common'), 'media')#we always use common
     ]
 
     if skin != 'default':
