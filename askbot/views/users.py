@@ -655,35 +655,38 @@ def user_responses(request, user, context):
     response_list = list()
     for memo in memo_set:
         #a monster query chain below
-        if memo.activity.content_type.model == 'userlogentry':
-            response = {
-                'id': memo.id,
-                'timestamp': memo.activity.active_at,
-                'user': memo.activity.user,
-                'is_new': memo.is_new(),
-                'response_url': memo.activity.get_absolute_url(),
-                'response_snippet': memo.activity.content_object.get_modify_message(),
-                'response_title': memo.activity.get_snippet(),
-                'response_type': memo.activity.content_object.get_activity_type_display(),
-                'response_id': memo.activity.object_id,
-                'nested_responses': [],
-                'response_content': memo.activity.content_object.html,
-            }
-        else:            
-            response = {
-                'id': memo.id,
-                'timestamp': memo.activity.active_at,
-                'user': memo.activity.user,
-                'is_new': memo.is_new(),
-                'response_url': memo.activity.get_absolute_url(),
-                'response_snippet': memo.activity.get_snippet(),
-                'response_title': memo.activity.question.thread.title,
-                'response_type': memo.activity.get_activity_type_display(),
-                'response_id': memo.activity.object_id,
-                'nested_responses': [],
-                'response_content': memo.activity.content_object.html,
-            }
-        response_list.append(response)
+        try:
+            if memo.activity.content_type.model == 'userlogentry':
+                response = {
+                    'id': memo.id,
+                    'timestamp': memo.activity.active_at,
+                    'user': memo.activity.user,
+                    'is_new': memo.is_new(),
+                    'response_url': memo.activity.get_absolute_url(),
+                    'response_snippet': memo.activity.content_object.get_modify_message(),
+                    'response_title': memo.activity.get_snippet(),
+                    'response_type': memo.activity.content_object.get_activity_type_display(),
+                    'response_id': memo.activity.object_id,
+                    'nested_responses': [],
+                    'response_content': memo.activity.content_object.html,
+                }
+            else:            
+                response = {
+                    'id': memo.id,
+                    'timestamp': memo.activity.active_at,
+                    'user': memo.activity.user,
+                    'is_new': memo.is_new(),
+                    'response_url': memo.activity.get_absolute_url(),
+                    'response_snippet': memo.activity.get_snippet(),
+                    'response_title': memo.activity.question.thread.title,
+                    'response_type': memo.activity.get_activity_type_display(),
+                    'response_id': memo.activity.object_id,
+                    'nested_responses': [],
+                    'response_content': memo.activity.content_object.html,
+                }
+            response_list.append(response)
+        except:
+            pass
     #4) sort by response id
     response_list.sort(lambda x,y: cmp(y['response_id'], x['response_id']))
 
