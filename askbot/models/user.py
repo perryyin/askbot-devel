@@ -14,6 +14,7 @@ from askbot import const
 from askbot.utils import functions
 from askbot.models.tag import Tag
 from askbot.forms import DomainNameField
+from django.utils.encoding import smart_unicode
 
 class ResponseAndMentionActivityManager(models.Manager):
     def get_query_set(self):
@@ -305,9 +306,9 @@ class EmailFeedSetting(models.Model):
         else:
             reported_at = '%s' % self.reported_at.strftime('%d/%m/%y %H:%M')
         return 'Email feed for %s type=%s, frequency=%s, reported_at=%s' % (
-                                                     self.subscriber, 
-                                                     self.feed_type, 
-                                                     self.frequency,
+                                                     smart_unicode(self.subscriber), 
+                                                     smart_unicode(self.feed_type), 
+                                                     smart_unicode(self.frequency),
                                                      reported_at
                                                  )
 
