@@ -364,14 +364,14 @@ class ThreadManager(models.Manager):
 class Thread(models.Model):
     SUMMARY_CACHE_KEY_TPL = 'thread-question-summary-%d'
     ANSWER_LIST_KEY_TPL = 'thread-answer-list-%d'
-    # AgeChoices=(
-    #       ('1', _('pregnant')),
-    #       ('2', _('0-1')),
-    #       ('3', _('1-2')),
-    #       ('4', _('2-4')),
-    #       ('5', _('4-6')),
-    #       ('6', _('6- '))
-    #       )
+    AgeChoices=(
+          ('1', _('pregnant')),
+          ('2', _('0-1')),
+          ('3', _('1-2')),
+          ('4', _('2-4')),
+          ('5', _('4-6')),
+          ('6', _('6- '))
+          )
 
     title = models.CharField(max_length=300)
 
@@ -384,7 +384,7 @@ class Thread(models.Model):
     answer_count = models.PositiveIntegerField(default=0)
     last_activity_at = models.DateTimeField(default=datetime.datetime.now)
     last_activity_by = models.ForeignKey(User, related_name='unused_last_active_in_threads')
-    # age = models.CharField(_("age"), max_length=50, choices=AgeChoices, null=True, blank=True)
+    age = models.CharField(_("age"), max_length=50, choices=AgeChoices, null=True, blank=True)
 
     followed_by     = models.ManyToManyField(User, related_name='followed_threads')
     favorited_by    = models.ManyToManyField(User, through='FavoriteQuestion', related_name='unused_favorite_threads')
